@@ -39,7 +39,9 @@ pub unsafe extern "C" fn reset() -> ! {
 
 fn main(hw: board::Hardware) -> ! {
 
-let board::Hardware {
+    use embedded::interfaces::gpio::{self,Gpio};
+
+    let board::Hardware {
         rcc,
         pwr,
         flash,
@@ -64,8 +66,53 @@ let board::Hardware {
         ..
     } = hw;
 
+    let mut gpio = Gpio::new(gpio_a,
+                             gpio_b,
+                             gpio_c,
+                             gpio_d,
+                             gpio_e,
+                             gpio_f,
+                             gpio_g,
+                             gpio_h,
+                             gpio_i,
+                             gpio_j,
+                             gpio_k);
+
+    system_clock::init(rcc, pwr, flash);
+
+    rcc.ahb1enr.update(|r| {
+
+        r.set_gpioaen(true);
+        r.set_gpioben(true);
+        r.set_gpiocen(true);
+        r.set_gpioden(true);
+        r.set_gpioeen(true);
+        r.set_gpiofen(true);
+        r.set_gpiogen(true);
+        r.set_gpiohen(true);
+        r.set_gpioien(true);
+        r.set_gpiojen(true);
+        r.set_gpioken(true);
+    });
+
+    let led_pin = (gpio::Port::PortI, gpio::Pin::Pin1);
+
+    let mut led = gpio.to_output(led_pin,
+                                 gpio::OutputType::PushPull,
+                                 gpio::OutputSpeed::Low,
+                                 gpio::Resistor::NoPull,)
+        .expect("led pin already in use");
+
+    let mut last_toggle_ticks = system_clock::ticks();
 
     loop {
+
+        let ticks = system_clock::ticks();
+        if (system_clock::ticks() - last_toggle_ticks)  > 1500 {
+            let current_led_state = led.get();
+            led.set(!current_led_state);
+            last_toggle_ticks = ticks;
+        }
 
     }
 }
