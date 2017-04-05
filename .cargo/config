@@ -1,2 +1,4 @@
+paths = ["../net"]
+
 [build]
 target = "stm32f7"
