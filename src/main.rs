@@ -2,18 +2,19 @@
 #![no_main]
 #![feature(inclusive_range_syntax)]
 #![feature(asm)]
-#![feature(step_by)]
+#![feature(const_fn)]
 
 #![macro_use]
 extern crate stm32f7_discovery as stm32f7;
 extern crate r0;
 
-use stm32f7::{system_clock, sdram, lcd, board, embedded};
-use lcd::Color;
+use stm32f7::{system_clock, sdram, lcd, i2c, touch, board, embedded};
+use lcd::{Lcd, Color};
 
 #[macro_use]
 mod semi_hosting;
 mod graphics;
+use graphics::ColorSquare;
 
 static sine_lut: [u16; 480] = [
     0x88,0x89,0x8b,0x8d,0x8f,0x90,0x92,0x94,
@@ -76,6 +77,7 @@ static sine_lut: [u16; 480] = [
     0x5e,0x5f,0x61,0x63,0x64,0x66,0x68,0x6a,
     0x6b,0x6d,0x6f,0x71,0x72,0x74,0x76,0x78,
     0x79,0x7b,0x7d,0x7f,0x80,0x82,0x84,0x86];
+
 
 #[no_mangle]
 pub unsafe extern "C" fn reset() -> ! {
@@ -168,6 +170,10 @@ fn main(hw: board::Hardware) -> ! {
     sdram::init(rcc, fmc, &mut gpio);
     let mut lcd = lcd::init(ltdc, rcc, &mut gpio);
 
+    i2c::init_pins_and_clocks(rcc, &mut gpio);
+    let mut i2c_3 = i2c::init(i2c_3);
+    touch::check_family_id(&mut i2c_3).unwrap();
+
     let led_pin = (gpio::Port::PortI, gpio::Pin::Pin1);
 
     let mut led = gpio.to_output(led_pin,
@@ -181,28 +187,43 @@ fn main(hw: board::Hardware) -> ! {
     lcd.clear_screen();
     lcd.set_background_color(Color::from_hex(0x0));
 
-    //let mut y = 0;
-    //let mut x = 0;
-
+/*
     // draw the sine
-    // for (x, y) in sine_lut.iter().enumerate() {
-    //     lcd.print_point_at(x as u16, *y as u16);
-    // }
+    for (x, y) in sine_lut.iter().enumerate() {
+        lcd.print_point_at(x as u16, *y as u16);
+    }
+*/
 
-
-    // draw square
-    // let mut color: u16 = 0x0;
-    let mut len = 150;
-
+/*
+    // draw square: init
+    let mut len: u16;
     let mut counter_x = 0;
     let mut counter_y = 0;
-
+    // draw square: constants
     let random_pos_x = [1, 40, 50, 99, 150];
     let random_pos_y = [30, 25, 1, 5, 100, 120, 7];
     let colors : [u16; 8] = [0xffff, 0xcccc, 0x9999, 0x6666, 0x3333, 0x0, 0xff00, 0x00ff];
-    // graphics::draw_square(1, 1, 50, 0xffff, &mut lcd);
-    // graphics::draw_square(10, 10, 30, 0x0, &mut lcd);
+*/
+
+    // multitouch drawing
+
+    // prepare the color buttons for multitouch drawing
+    let color_buttons: [ColorSquare; 4] = [
+        ColorSquare::new(10, 10, 50, 0xffff),
+        ColorSquare::new(10, 70, 50, 0xff00),
+        ColorSquare::new(10, 130, 50, 0xaacc),
+        ColorSquare::new(10, 190, 50, 0xccaa)];
+
+    for color_button in color_buttons.iter() {
+        color_button.draw(&mut lcd);
+    }
+
+    let mut touch_color = color_buttons[0].get_color();
+    // end: multitouch drawing
+
     loop {
+
+        // LED blinking
         let ticks = system_clock::ticks();
         if (system_clock::ticks() - last_toggle_ticks) > 200 {
             let current_led_state = led.get();
@@ -210,20 +231,42 @@ fn main(hw: board::Hardware) -> ! {
             last_toggle_ticks = ticks;
         }
 
+/*
+        // draw square
         counter_x = (counter_x + 1) % random_pos_x.len();
         counter_y = (counter_y + 1) % random_pos_y.len();
         let mut x = random_pos_x[counter_x];
         let mut y = random_pos_y[counter_y];
 
+        len = 150;
         while len > 0 {
             graphics::draw_square(x, y, len, colors[(len as usize)  % colors.len()], &mut lcd);
             x += 1;
             y += 1;
             len -= 2;
         }
-        len = 150;
 
         system_clock::wait(300);
         lcd.clear_screen();
+*/
+
+        // touch screen writing
+        // poll for new touch data
+        for touch in &touch::touches(&mut i2c_3).unwrap() {
+            let mut color_changed = false;
+
+            // check if one of the color buttons was touched
+            for color_button in color_buttons.iter() {
+                if !color_changed && color_button.touched_inside(touch.x, touch.y) {
+                    touch_color = color_button.get_color();
+                    color_changed = true;
+                }
+            }
+
+            // draw a point if this touch didn't touch a color button
+            if !color_changed {
+                lcd.print_point_color_at(touch.x, touch.y, touch_color);
+            }
+        }
     }
 }
