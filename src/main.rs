@@ -7,14 +7,17 @@
 #![macro_use]
 extern crate stm32f7_discovery as stm32f7;
 extern crate r0;
+extern crate bit_field;
 
 use stm32f7::{system_clock, sdram, lcd, i2c, touch, board, embedded};
 use lcd::{Lcd, Color};
 
 #[macro_use]
 mod semi_hosting;
+pub mod rng;
 mod graphics;
 use graphics::ColorSquare;
+
 
 static sine_lut: [u16; 480] = [
     0x88,0x89,0x8b,0x8d,0x8f,0x90,0x92,0x94,
@@ -194,6 +197,11 @@ fn main(hw: board::Hardware) -> ! {
     }
 */
 
+    // draw square
+    // let mut color: u16 = 0x0;
+    let mut rng = rng::enable().expect("Rng already enabled");
+    let mut len = 150;
+
 /*
     // draw square: init
     let mut len: u16;
@@ -244,12 +252,50 @@ fn main(hw: board::Hardware) -> ! {
             x += 1;
             y += 1;
             len -= 2;
-        }
+        counter_x = (counter_x + 1) % random_pos_x.len();
+        counter_y = (counter_y + 1) % random_pos_y.len();
+        let mut x = random_pos_x[counter_x];
+        let mut y = random_pos_y[counter_y];
+
+        while len > 0 {
+            graphics::draw_square(x, y, len, colors[(len as usize)  % colors.len()], &mut lcd);
+            x += 1;
+            y += 1;
+            len -= 2;
+        // counter_x = (counter_x + 1) % random_pos_x.len();
+        // counter_y = (counter_y + 1) % random_pos_y.len();
+        // let mut x = random_pos_x[counter_x];
+        // let mut y = random_pos_y[counter_y];
+
+        // while len > 0 {
+        //     graphics::draw_square(x, y, len, colors[(len as usize)  % colors.len()], &mut lcd);
+        //     x += 1;
+        //     y += 1;
+        //     len -= 2;
+        // }
+        // len = 150;
 
         system_clock::wait(300);
         lcd.clear_screen();
 */
+        println!("Loop executed");
+        let data = rng.poll_and_get();
 
+        match data {
+
+            Ok(random_dat) => {
+                if let Some(random_dat) = random_dat {
+                    println!("Rng obtained {}", random_dat);
+                }
+                else
+                {
+                    println!("No random data");
+                }
+            }
+            Err(s) => {
+                println!("Err while polling: {:?}", s);
+            }
+        }
         // touch screen writing
         // poll for new touch data
         for touch in &touch::touches(&mut i2c_3).unwrap() {
@@ -268,5 +314,6 @@ fn main(hw: board::Hardware) -> ! {
                 lcd.print_point_color_at(touch.x, touch.y, touch_color);
             }
         }
+        lcd.clear_screen();
     }
 }
