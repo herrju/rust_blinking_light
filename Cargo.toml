@@ -2,6 +2,7 @@
 name = "blinkin_led"
 version = "0.1.0"
 authors = ["purcx"]
+license = "MIT"
 
 [dependencies]
 cortex-m = "0.1.4"
