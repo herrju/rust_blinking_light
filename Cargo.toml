@@ -1,7 +1,7 @@
 [package]
 name = "blinkin_led"
 version = "0.1.0"
-authors = ["purcx"]
+authors = ["herrju","blipp"]
 license = "MIT"
 
 [dependencies]
